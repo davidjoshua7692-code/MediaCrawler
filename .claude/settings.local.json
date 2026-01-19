@@ -16,7 +16,8 @@
       "Bash(claude plugin install:*)",
       "Bash(python:*)",
       "Bash(where:*)",
-      "mcp__web-reader__webReader"
+      "mcp__web-reader__webReader",
+      "mcp__zread__get_repo_structure"
     ]
   }
 }
