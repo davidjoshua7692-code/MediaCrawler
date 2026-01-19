@@ -1,5 +1,5 @@
 ---
-name: git-fork-management
+name: managing-git-fork
 description: Comprehensive Git Fork repository management with intelligent upstream synchronization, conflict detection, and resolution guidance. Use when working with forked repositories, syncing upstream updates, handling merge conflicts, or managing git remotes (origin/upstream). Includes automated scripts for conflict analysis and step-by-step workflows for safe upstream merging.
 ---
 

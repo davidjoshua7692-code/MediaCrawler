@@ -11,6 +11,8 @@ import re
 from collections import Counter
 from typing import Dict, List, Any, Optional
 import warnings
+import sys
+import io
 warnings.filterwarnings('ignore')
 
 # 导入模板库
@@ -239,6 +241,10 @@ def analyze_sentiment(
     return 'neutral'
 
 
+def get_project_root() -> Path:
+    """获取项目根目录"""
+    return Path(__file__).resolve().parents[3]
+
 # ============================================================================
 # 主分析函数
 # ============================================================================
@@ -316,45 +322,61 @@ def analyze_mediacrawler_data(
     else:
         location_patterns = None
 
+    # 确定输出目录
+    project_root = get_project_root()
+    if not output_dir:
+        output_dir = project_root / "REPORT"
+    else:
+        output_dir = Path(output_dir)
+    
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     # 自定义标题
     if not custom_title:
         template_name = get_template(template_id or 'generic').get('name', '')
         custom_title = f"📊 {platform_name}数据分析报告 - {template_name}"
 
-    print("=" * 80)
-    print(custom_title)
-    print("=" * 80)
+    # 开始捕获输出以保存到文件
+    report_output = io.StringIO()
+    
+    def smart_print(*args, **kwargs):
+        print(*args, **kwargs)
+        print(*args, file=report_output, **kwargs)
+
+    smart_print("=" * 80)
+    smart_print(custom_title)
+    smart_print("=" * 80)
 
     # 数据概览
-    print(f"\n✅ 平台识别: {platform_name} ({platform})")
+    smart_print(f"\n✅ 平台识别: {platform_name} ({platform})")
     if template_id:
-        print(f"✅ 分析模板: {get_template(template_id).get('name', template_id)}")
-    print(f"✅ 数据加载成功!")
-    print(f"   帖子数据: {len(df_contents)} 条")
+        smart_print(f"✅ 分析模板: {get_template(template_id).get('name', template_id)}")
+    smart_print(f"✅ 数据加载成功!")
+    smart_print(f"   帖子数据: {len(df_contents)} 条")
     if df_comments is not None:
-        print(f"   评论数据: {len(df_comments)} 条")
+        smart_print(f"   评论数据: {len(df_comments)} 条")
 
     # 1. 基础统计
-    print("\n" + "=" * 80)
-    print("📈 一、基础数据统计")
-    print("=" * 80)
+    smart_print("\n" + "=" * 80)
+    smart_print("📈 一、基础数据统计")
+    smart_print("=" * 80)
 
     metrics = platform_config.get('metrics', [])
     metric_names = [m for m in metrics if m in df_contents.columns]
 
     if metric_names:
-        print(f"\n互动数据统计:")
+        smart_print(f"\n互动数据统计:")
         for metric in metric_names:
             mean_val = df_contents[metric].mean()
             max_val = df_contents[metric].max()
             metric_label = metric.replace('_', ' ').title()
-            print(f"  平均{metric_label}: {mean_val:.1f}")
-            print(f"  最高{metric_label}: {max_val}")
+            smart_print(f"  平均{metric_label}: {mean_val:.1f}")
+            smart_print(f"  最高{metric_label}: {max_val}")
 
     # 2. 地理位置分析
-    print("\n" + "=" * 80)
-    print("📍 二、地理位置分析")
-    print("=" * 80)
+    smart_print("\n" + "=" * 80)
+    smart_print("📍 二、地理位置分析")
+    smart_print("=" * 80)
 
     location_field = platform_config.get('location_field')
     all_locations = []
@@ -363,10 +385,10 @@ def analyze_mediacrawler_data(
     if location_field and location_field in df_contents.columns:
         # 从专用字段提取
         locations_data = df_contents[location_field].value_counts().head(10)
-        print(f"\n{location_field} 分布 Top 10:")
+        smart_print(f"\n{location_field} 分布 Top 10:")
         for loc, count in locations_data.items():
             if pd.notna(loc):
-                print(f"  {loc}: {count} 次")
+                smart_print(f"  {loc}: {count} 次")
                 location_counter[loc] = count
     
     # 从文本中提取地点
@@ -378,14 +400,14 @@ def analyze_mediacrawler_data(
 
     if all_locations:
         location_counter = Counter(all_locations)
-        print(f"\n文本中提及的地点 Top 10:")
+        smart_print(f"\n文本中提及的地点 Top 10:")
         for location, count in location_counter.most_common(10):
-            print(f"  {location}: {count} 次")
+            smart_print(f"  {location}: {count} 次")
 
     # 3. 特征分析
-    print("\n" + "=" * 80)
-    print("🎯 三、内容特征分析")
-    print("=" * 80)
+    smart_print("\n" + "=" * 80)
+    smart_print("🎯 三、内容特征分析")
+    smart_print("=" * 80)
 
     all_features = []
 
@@ -397,20 +419,20 @@ def analyze_mediacrawler_data(
     feature_counter = Counter(all_features)
 
     if feature_counter:
-        print(f"\n特征提及次数 Top 10:")
+        smart_print(f"\n特征提及次数 Top 10:")
         for feature, count in feature_counter.most_common(10):
-            print(f"  {feature}: {count} 次")
+            smart_print(f"  {feature}: {count} 次")
     else:
-        print("\n未检测到显著特征（可使用custom_keywords参数或template_id指定分析模板）")
+        smart_print("\n未检测到显著特征（可使用custom_keywords参数或template_id指定分析模板）")
 
     # 4. 情感分析
     sentiment_results = {'positive': 0, 'negative': 0, 'neutral': 0}
     positive_pct = 0.0
 
     if df_comments is not None:
-        print("\n" + "=" * 80)
-        print("💬 四、评论情感分析")
-        print("=" * 80)
+        smart_print("\n" + "=" * 80)
+        smart_print("💬 四、评论情感分析")
+        smart_print("=" * 80)
 
         for idx, row in df_comments.head(200).iterrows():
             comment = row.get('content', '')
@@ -420,17 +442,17 @@ def analyze_mediacrawler_data(
         total = sentiment_results['positive'] + sentiment_results['negative']
         positive_pct = (sentiment_results['positive'] / total * 100) if total > 0 else 0
 
-        print(f"\n评论情感分布 (基于前200条评论):")
-        print(f"  积极: {sentiment_results['positive']} 条")
-        print(f"  消极: {sentiment_results['negative']} 条")
-        print(f"  中性: {sentiment_results['neutral']} 条")
+        smart_print(f"\n评论情感分布 (基于前200条评论):")
+        smart_print(f"  积极: {sentiment_results['positive']} 条")
+        smart_print(f"  消极: {sentiment_results['negative']} 条")
+        smart_print(f"  中性: {sentiment_results['neutral']} 条")
         if total > 0:
-            print(f"  积极占比: {positive_pct:.1f}%")
+            smart_print(f"  积极占比: {positive_pct:.1f}%")
 
     # 5. 创建可视化
-    print("\n" + "=" * 80)
-    print("📊 五、生成可视化图表")
-    print("=" * 80)
+    smart_print("\n" + "=" * 80)
+    smart_print("📊 五、生成可视化图表")
+    smart_print("=" * 80)
 
     output_file = create_visualizations(
         df_contents,
@@ -442,12 +464,12 @@ def analyze_mediacrawler_data(
         output_dir
     )
 
-    print(f"\n✅ 图表已保存: {output_file}")
+    smart_print(f"\n✅ 图表已保存: {output_file}")
 
     # 6. 热门内容
-    print("\n" + "=" * 80)
-    print("🔥 六、热门内容 Top 3")
-    print("=" * 80)
+    smart_print("\n" + "=" * 80)
+    smart_print("🔥 六、热门内容 Top 3")
+    smart_print("=" * 80)
 
     if metric_names:
         primary_metric = metric_names[0]
@@ -455,13 +477,13 @@ def analyze_mediacrawler_data(
 
         for idx, row in top_contents.iterrows():
             title = row.get('title', row.get('text', row.get('caption', 'N/A')))
-            print(f"\n  {str(title)[:60]}...")
-            print(f"  👍 {row[primary_metric]} {primary_metric}")
+            smart_print(f"\n  {str(title)[:60]}...")
+            smart_print(f"  👍 {row[primary_metric]} {primary_metric}")
 
     # 7. 关键洞察
-    print("\n" + "=" * 80)
-    print("💡 七、关键洞察")
-    print("=" * 80)
+    smart_print("\n" + "=" * 80)
+    smart_print("💡 七、关键洞察")
+    smart_print("=" * 80)
 
     insights = []
 
@@ -483,11 +505,17 @@ def analyze_mediacrawler_data(
         insights.append(f"{metric_names[1]}是{metric_names[0]}的{ratio:.2f}倍")
 
     for insight in insights:
-        print(f"  • {insight}")
+        smart_print(f"  • {insight}")
 
-    print("\n" + "=" * 80)
-    print("✅ 分析完成!")
-    print("=" * 80)
+    smart_print("\n" + "=" * 80)
+    smart_print("✅ 分析完成!")
+    smart_print("=" * 80)
+
+    # 保存文本报告
+    report_file = output_dir / f"{platform}_report.txt"
+    with open(report_file, 'w', encoding='utf-8') as f:
+        f.write(report_output.getvalue())
+    print(f"✅ 文本报告已保存: {report_file}")
 
     return {
         'platform': platform,
@@ -592,11 +620,7 @@ def create_visualizations(
     plt.tight_layout()
 
     # 确定输出路径
-    if output_dir:
-        output_path = Path(output_dir)
-    else:
-        output_path = Path('d:/MediaCrawler-main')
-    
+    output_path = Path(output_dir) if output_dir else get_project_root()
     output_file = str(output_path / f'{platform}_analysis.png')
     plt.savefig(output_file, dpi=150, bbox_inches='tight')
     plt.close()

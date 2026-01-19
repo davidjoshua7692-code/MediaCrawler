@@ -1,9 +1,6 @@
 ---
-name: mediacrawler-analyzer
-description: 分析 MediaCrawler 爬取的社交媒体数据
-metadata:
-  version: 2.0.0
-  dependencies: pandas, matplotlib, seaborn
+name: analyzing-social-media-data
+description: Analyzes social media CSV data crawled from platforms such as Xiaohongshu, Douyin, Bilibili, and Weibo. Use when the user has completed crawling and requests analysis, summaries, insights, or trends.
 ---
 
 # MediaCrawler 数据分析器
