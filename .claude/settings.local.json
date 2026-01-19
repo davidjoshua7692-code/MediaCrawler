@@ -17,7 +17,13 @@
       "Bash(python:*)",
       "Bash(where:*)",
       "mcp__web-reader__webReader",
-      "mcp__zread__get_repo_structure"
+      "mcp__zread__get_repo_structure",
+      "Skill(csv-data-summarizer)",
+      "Skill(csv-data-summarizer:*)"
     ]
+  },
+  "enabledPlugins": {
+    "document-skills@anthropic-agent-skills": true,
+    "example-skills@anthropic-agent-skills": true
   }
 }

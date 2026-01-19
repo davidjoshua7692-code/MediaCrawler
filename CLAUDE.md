@@ -179,11 +179,6 @@ AI 回复：⚠️ 提示：抖音平台需要安装 Node.js >= v16.0.0
    - 默认：`json`
    - 示例：`json`
 
-## 📁 项目位置
-```
-c:\Users\danie\Documents\DANIEL\MediaCrawler_temp\
-```
-
 ## 🚀 执行步骤
 
 ### 1. 修改配置文件
@@ -211,7 +206,6 @@ SAVE_DATA_OPTION = "json"  # 用户指定，默认json
 
 ### 2. 运行爬虫
 ```bash
-cd c:\Users\danie\Documents\DANIEL\MediaCrawler_temp
 uv run python main.py
 ```
 
@@ -388,18 +382,7 @@ ENABLE_GET_COMMENTS = True  # 必须同时开启评论爬取
 
 ---
 
-## 💡 Excel vs 其他格式对比
-
-### Excel优势 ✅
-- 多工作表（内容、评论、创作者分开）
-- 专业格式化（蓝色标题、自动列宽、边框）
-- 更好的特殊字符处理
-- 无编码问题
-- 易于用Excel/Google Sheets打开
-
-### Excel劣势 ❌
-- 文件大小是CSV的2-3倍
-- 大数据量（>10000行）性能不如数据库
+## 💡 格式对比
 
 ### 推荐场景
 - **个人使用、数据分析** → Excel
