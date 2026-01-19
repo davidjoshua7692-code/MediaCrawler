@@ -34,7 +34,7 @@ git remote -v
 # upstream  https://github.com/原作者/原仓库.git
 ```
 
-如果未配置，参见 [Git 远程仓库配置](references/remote-setup.md)。
+If not configured, see [references/remote-setup.md](references/remote-setup.md).
 
 ---
 
@@ -74,7 +74,7 @@ git merge --no-commit --no-ff upstream/main
 **检测后处理：**
 
 - **无冲突**：继续阶段 4
-- **有冲突**：查看 `git status`，参见 [冲突解决指南](references/conflict-resolution.md)
+- **有冲突**：查看 `git status`，参见 [references/conflict-resolution.md](references/conflict-resolution.md)
 
 如果预检测后不想继续合并：
 
@@ -118,11 +118,11 @@ git push origin main
 ### 场景 C: 同步上游且有冲突
 
 1. 运行冲突检测（阶段 3）
-2. 查看 [冲突解决指南](references/conflict-resolution.md)
+2. See [references/conflict-resolution.md](references/conflict-resolution.md)
 3. 手动解决冲突
 4. 推送更新
 
-详见 [完整冲突处理流程](references/conflict-resolution.md#完整流程)。
+See [references/conflict-resolution.md#完整流程](references/conflict-resolution.md#完整流程).
 
 ---
 
@@ -159,14 +159,14 @@ git push origin main
 Automatic merge failed; fix conflicts and then commit
 ```
 
-**解决：** 参见 [冲突解决指南](references/conflict-resolution.md)。
+**Solution:** See [references/conflict-resolution.md](references/conflict-resolution.md).
 
 ### 找不到 upstream
 ```
 fatal: 'upstream' does not appear to be a git repository
 ```
 
-**解决：** 参见 [Git 远程仓库配置](references/remote-setup.md) 添加 upstream。
+**Solution:** See [references/remote-setup.md](references/remote-setup.md) to add upstream.
 
 ---
 
@@ -190,6 +190,6 @@ fatal: 'upstream' does not appear to be a git repository
 
 ## 参考资料
 
-- [Git 远程仓库配置](references/remote-setup.md) - 配置 origin 和 upstream
-- [冲突解决指南](references/conflict-resolution.md) - 详细的冲突处理步骤
-- [工作流最佳实践](references/best-practices.md) - 推荐的工作流和注意事项
+- [references/remote-setup.md](references/remote-setup.md) - Configure origin and upstream
+- [references/conflict-resolution.md](references/conflict-resolution.md) - Detailed conflict handling steps
+- [references/best-practices.md](references/best-practices.md) - Recommended workflow and notes

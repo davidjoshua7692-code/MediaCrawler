@@ -99,32 +99,48 @@ description: Analyzes social media CSV data crawled from platforms such as Xiaoh
 
 ## 🚀 执行方法
 
+> **支持格式**：`.csv`, `.xlsx`, `.xls`（自动检测格式）
+
 ### 1. 预览数据（AI 推理用）
 
 ```python
 from analyze import preview_data_structure
 
+# CSV 格式
 preview = preview_data_structure('data/xhs/csv/search_contents_2026-01-19.csv')
+
+# Excel 格式
+preview = preview_data_structure('data/xhs/excel/xhs_search_2026-01-19.xlsx')
+
 # 返回: platform, search_keywords, suggested_template, suggested_features
 ```
 
 ### 2. 运行分析
 
 ```bash
-# 使用模板
-uv run python analyze.py <contents.csv> [comments.csv] --template=workspace
+# 使用模板（CSV 格式）
+uv run python analyze.py data/xhs/csv/search_contents.csv data/xhs/csv/search_comments.csv --template=workspace
+
+# 使用模板（Excel 格式）
+uv run python analyze.py data/xhs/excel/xhs_search_2026-01-19.xlsx --template=workspace
 
 # 可用模板: restaurant, workspace, travel, fashion, learning, product_review, generic
 ```
 
 ```python
-# Python 调用
+# Python 调用（CSV 格式）
 from analyze import analyze_mediacrawler_data
 
 results = analyze_mediacrawler_data(
     contents_file='data/xhs/csv/search_contents.csv',
     comments_file='data/xhs/csv/search_comments.csv',
     template_id='workspace'  # 或 custom_keywords={...}
+)
+
+# Python 调用（Excel 格式）
+results = analyze_mediacrawler_data(
+    contents_file='data/xhs/excel/xhs_search_2026-01-19.xlsx',
+    template_id='workspace'
 )
 ```
 
@@ -151,6 +167,6 @@ analyze_mediacrawler_data(..., custom_keywords=custom_keywords)
 
 | 文件 | 用途 |
 |------|------|
-| [analyze.py](./analyze.py) | 主分析脚本 |
-| [templates.py](./templates.py) | 模板库及匹配函数 |
-| [troubleshooting.md](./troubleshooting.md) | 常见问题及错误处理 |
+| [analyze.py](analyze.py) | 主分析脚本 |
+| [templates.py](templates.py) | 模板库及匹配函数 |
+| [troubleshooting.md](troubleshooting.md) | 常见问题及错误处理 |

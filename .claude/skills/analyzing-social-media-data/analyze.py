@@ -242,8 +242,51 @@ def analyze_sentiment(
 
 
 def get_project_root() -> Path:
-    """获取项目根目录"""
-    return Path(__file__).resolve().parents[3]
+    """通过查找 .claude 文件夹自动定位项目根目录"""
+    current_path = Path(__file__).resolve()
+    # 向上寻找包含 .claude 文件夹的目录
+    for parent in [current_path] + list(current_path.parents):
+        if (parent / ".claude").is_dir():
+            return parent
+    # 如果没找到（比如脚本被移到了项目外），则 fallback 到脚本的上上上级或当前目录
+    return current_path.parents[3] if len(current_path.parents) > 3 else current_path.parent
+
+
+def read_data_file(file_path: str) -> pd.DataFrame:
+    """
+    智能读取数据文件，自动检测格式（CSV 或 Excel）
+    
+    Args:
+        file_path: 文件路径（支持 .csv, .xlsx, .xls）
+    
+    Returns:
+        pd.DataFrame: 读取的数据
+    
+    Raises:
+        ValueError: 如果文件格式不支持
+    """
+    file_path = Path(file_path)
+    
+    if not file_path.exists():
+        raise FileNotFoundError(f"文件不存在: {file_path}")
+    
+    file_ext = file_path.suffix.lower()
+    
+    if file_ext == '.csv':
+        return pd.read_csv(file_path)
+    elif file_ext in ['.xlsx', '.xls']:
+        try:
+            return pd.read_excel(file_path)
+        except ImportError:
+            raise ImportError(
+                "读取 Excel 文件需要安装 openpyxl 库。\n"
+                "请运行: pip install openpyxl 或 uv add openpyxl"
+            )
+    else:
+        raise ValueError(
+            f"不支持的文件格式: {file_ext}\n"
+            f"支持的格式: .csv, .xlsx, .xls"
+        )
 
 # ============================================================================
 # 主分析函数
@@ -262,8 +305,8 @@ def analyze_mediacrawler_data(
     综合分析MediaCrawler爬取的数据
 
     Args:
-        contents_file: 内容CSV文件路径
-        comments_file: 评论CSV文件路径（可选）
+        contents_file: 内容文件路径（支持 .csv, .xlsx, .xls）
+        comments_file: 评论文件路径（可选，支持 .csv, .xlsx, .xls）
         custom_keywords: 自定义关键词字典，格式：
             {
                 'features': {
@@ -283,9 +326,9 @@ def analyze_mediacrawler_data(
     Returns:
         dict: 分析结果和可视化文件路径
     """
-    # 读取数据
-    df_contents = pd.read_csv(contents_file)
-    df_comments = pd.read_csv(comments_file) if comments_file else None
+    # 读取数据（自动检测格式）
+    df_contents = read_data_file(contents_file)
+    df_comments = read_data_file(comments_file) if comments_file else None
 
     # 智能检测平台
     platform = detect_platform(df_contents, df_comments)
@@ -637,12 +680,12 @@ def preview_data_structure(contents_file: str) -> Dict[str, Any]:
     预览数据结构，用于 AI 推理分析方向
     
     Args:
-        contents_file: 内容CSV文件路径
+        contents_file: 内容文件路径（支持 .csv, .xlsx, .xls）
     
     Returns:
         dict: 数据结构预览信息
     """
-    df = pd.read_csv(contents_file)
+    df = read_data_file(contents_file)
     platform = detect_platform(df)
     
     # 获取搜索关键词
@@ -676,7 +719,8 @@ if __name__ == "__main__":
 
     # 简单的命令行接口
     if len(sys.argv) < 2:
-        print("用法: python analyze.py <contents.csv> [comments.csv] [--template=<template_id>]")
+        print("用法: python analyze.py <contents文件> [comments文件] [--template=<template_id>]")
+        print("支持格式: .csv, .xlsx, .xls")
         print("\n可用模板:")
         from templates import list_templates
         for t in list_templates():

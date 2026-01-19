@@ -182,3 +182,6 @@ database/*.db
 
 # Antigravity
 .agent
+
+# report
+REPORT
