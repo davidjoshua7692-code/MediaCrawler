@@ -1,301 +1,159 @@
-# MediaCrawler 智能数据分析器
+---
+name: mediacrawler-analyzer
+description: 分析 MediaCrawler 爬取的社交媒体数据
+metadata:
+  version: 2.0.0
+  dependencies: pandas, matplotlib, seaborn
+---
 
-## 🎯 功能特点
+# MediaCrawler 数据分析器
 
-### 1️⃣ **自动平台识别**
-- ✅ 通过CSV列名自动识别数据来源平台
-- ✅ 支持平台：小红书、抖音、B站、微博、快手、贴吧、知乎
-- ✅ 无需手动指定平台类型
-
-### 2️⃣ **参数化关键词配置**
-- ✅ 支持自定义特征关键词库
-- ✅ 支持自定义情感分析词典
-- ✅ 不同搜索主题自动适配
-
-### 3️⃣ **智能内容分析**
-- ✅ 地理位置提取
-- ✅ 内容特征识别
-- ✅ 情感倾向分析
-- ✅ 热门内容推荐
-
-### 4️⃣ **丰富的可视化**
-- ✅ 6合1综合图表
-- ✅ 互动数据分布
-- ✅ 相关性热图
-- ✅ 排行榜可视化
+> **核心价值**：帮助用户确定"分析什么"和"怎么分析"，而不只是执行脚本。
 
 ---
 
-## 📦 安装依赖
+## 🤖 AI 行为准则
+
+### 必须遵循的原则
+
+1. **先推理，后执行** - 不要直接运行分析，先理解用户目的
+2. **协助用户思考** - 帮助明确想从数据中获得什么洞察
+3. **参数化配置** - 根据需求调整分析维度，不用默认值
+
+### 禁止行为
+
+❌ 不了解需求就执行脚本
+❌ 只输出技术数据，不提供洞察
+❌ 忽略用户的搜索关键词
+
+---
+
+## 🧠 分析工作流
+
+```
+┌─────────────────────────────────────────┐
+│ 1. 数据预览                              │
+│    preview_data_structure() 了解结构     │
+└─────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────┐
+│ 2. 需求确认（与用户对话）                 │
+│    • 推荐分析模板                        │
+│    • 确认或自定义分析维度                │
+└─────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────┐
+│ 3. 执行分析                              │
+│    analyze_mediacrawler_data()           │
+└─────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────┐
+│ 4. 结果解读                              │
+│    转化为用户可理解的洞察                │
+└─────────────────────────────────────────┘
+```
+
+---
+
+## 📋 需求推理表
+
+| 搜索关键词 | 推荐模板 | 分析维度 |
+|-----------|----------|---------|
+| 咖啡厅、自习室 | `workspace` | 安静、插座、网络、价格 |
+| 美食、探店 | `restaurant` | 口味、环境、服务、价格 |
+| 旅游、景点 | `travel` | 景点、交通、住宿、费用 |
+| 穿搭、ootd | `fashion` | 风格、季节、身材、场合 |
+| 教程、课程 | `learning` | 难度、实用性、讲解 |
+| 测评、开箱 | `product_review` | 质量、性能、外观、价格 |
+
+---
+
+## 💬 对话模板
+
+### 用户刚完成爬虫
+
+```
+我看到你爬取了关于"[关键词]"的数据，共 [N] 条。
+
+推荐使用 [模板名称] 模板，分析以下维度：
+- [维度1]：了解用户对 XX 的评价
+- [维度2]：统计 XX 的分布
+
+你希望：
+1. 使用推荐配置
+2. 调整分析维度
+3. 自定义关键词
+```
+
+### 用户不确定分析什么
+
+```
+可以从以下角度分析：
+
+📍 **地理分布**：热门地点
+😊 **用户评价**：正负面评价比例
+🏷️ **内容特征**：用户最关注什么
+📈 **互动数据**：高互动内容特征
+
+你最想了解哪方面？
+```
+
+---
+
+## 🚀 执行方法
+
+### 1. 预览数据（AI 推理用）
+
+```python
+from analyze import preview_data_structure
+
+preview = preview_data_structure('data/xhs/csv/search_contents_2026-01-19.csv')
+# 返回: platform, search_keywords, suggested_template, suggested_features
+```
+
+### 2. 运行分析
 
 ```bash
-cd d:/MediaCrawler-main
-uv sync
+# 使用模板
+uv run python analyze.py <contents.csv> [comments.csv] --template=workspace
+
+# 可用模板: restaurant, workspace, travel, fashion, learning, product_review, generic
 ```
-
----
-
-## 🚀 使用方法
-
-### 方法1: 命令行使用
-
-```bash
-# 基本用法（自动识别平台）
-cd d:/MediaCrawler-main/.claude/skills/mediacrawler-analyzer
-uv run python analyze.py data/xhs/csv/search_contents_2026-01-19.csv data/xhs/csv/search_comments_2026-01-19.csv
-
-# 在项目根目录使用
-uv run python .claude/skills/mediacrawler-analyzer/analyze.py data/xhs/csv/search_contents_2026-01-19.csv data/xhs/csv/search_comments_2026-01-19.csv
-```
-
-### 方法2: Python脚本调用
 
 ```python
-from .claude.skills.mediacrawler_analyzer.analyze import analyze_mediacrawler_data
-
-# 基本分析（自动识别平台）
-results = analyze_mediacrawler_data(
-    contents_file='data/xhs/csv/search_contents_2026-01-19.csv',
-    comments_file='data/xhs/csv/search_comments_2026-01-19.csv'
-)
-
-# 自定义关键词分析
-custom_keywords = {
-    'features': {
-        '口味': ['好吃', '美味', '正宗', '口感'],
-        '环境': ['装修', '氛围', '环境', '装潢'],
-        '服务': ['服务', '服务员', '态度', '热情'],
-        '价格': ['便宜', '实惠', '性价比', '实惠']
-    },
-    'sentiment': {
-        'positive': ['推荐', '赞', '爱了', '满意'],
-        'negative': ['失望', '差', '不值', '坑']
-    }
-}
+# Python 调用
+from analyze import analyze_mediacrawler_data
 
 results = analyze_mediacrawler_data(
-    contents_file='data/xhs/csv/search_contents_2026-01-19.csv',
-    comments_file='data/xhs/csv/search_comments_2026-01-19.csv',
-    custom_keywords=custom_keywords,
-    custom_title='🍜 美食推荐数据分析'
+    contents_file='data/xhs/csv/search_contents.csv',
+    comments_file='data/xhs/csv/search_comments.csv',
+    template_id='workspace'  # 或 custom_keywords={...}
 )
 ```
 
----
-
-## 🎨 自定义关键词配置
-
-### 场景1: 美食推荐
+### 3. 自定义关键词
 
 ```python
 custom_keywords = {
     'features': {
-        '口味': ['好吃', '美味', '正宗', '口感', '味道'],
-        '环境': ['装修', '氛围', '环境', '装潢', '档次'],
-        '服务': ['服务', '服务员', '态度', '热情', '周到'],
-        '价格': ['便宜', '实惠', '性价比', '平价', '亲民'],
-        '分量': ['分量', '量足', '量少', '量大'],
-        '等待时间': ['排队', '等位', '上菜快', '上菜慢']
+        '安静': ['安静', '清净', '不吵'],
+        '插座': ['插座', '电源', '充电'],
     },
     'sentiment': {
-        'positive': ['推荐', '赞', '爱了', '满意', '惊喜', '超出预期'],
-        'negative': ['失望', '差', '不值', '坑', '不会再来', '踩雷']
+        'positive': ['推荐', '好', '不错'],
+        'negative': ['吵', '贵', '差']
     }
 }
-```
 
-### 场景2: 穿搭推荐
-
-```python
-custom_keywords = {
-    'features': {
-        '风格': ['风格', '穿搭', '搭配', '造型'],
-        '季节': ['春秋', '夏季', '冬季', '保暖', '透气'],
-        '身材': ['显瘦', '显高', '显瘦', '宽松', '修身'],
-        '价格': ['平价', '性价比', '贵', '便宜'],
-        '场合': ['日常', '约会', '工作', '度假', '运动']
-    },
-    'sentiment': {
-        'positive': ['好看', '喜欢', '种草', '必买', '回购'],
-        'negative': ['丑', '不适合', '差评', '退了']
-    }
-}
-```
-
-### 场景3: 旅游攻略
-
-```python
-custom_keywords = {
-    'features': {
-        '景点': ['景点', '名胜', '古迹', '风景', '景色'],
-        '交通': ['交通', '方便', '地铁', '公交', '打车'],
-        '住宿': ['酒店', '民宿', '住宿', '入住'],
-        '美食': ['美食', '小吃', '餐厅', '特色菜'],
-        '费用': ['门票', '免费', '便宜', '贵', '性价比'],
-        '季节': ['最佳季节', '什么时候去', '天气', '气温']
-    },
-    'sentiment': {
-        'positive': ['值得', '推荐', '不虚此行', '美'],
-        'negative': ['不值得', '失望', '商业化', '坑']
-    }
-}
-```
-
-### 场景4: 影视剧推荐
-
-```python
-custom_keywords = {
-    'features': {
-        '剧情': ['剧情', '故事', '情节', '逻辑'],
-        '演员': ['演技', '演员', '主角', '配角'],
-        '制作': ['特效', '画面', '制作', '精良'],
-        '类型': ['悬疑', '喜剧', '爱情', '动作', '科幻'],
-        '时长': ['节奏', '时长', '集数']
-    },
-    'sentiment': {
-        'positive': ['好看', '推荐', '神作', '必看', '好评'],
-        'negative': ['烂片', '难看', '浪费时间', '差']
-    }
-}
+analyze_mediacrawler_data(..., custom_keywords=custom_keywords)
 ```
 
 ---
 
-## 📊 输出说明
+## 📁 相关文件
 
-### 分析报告包含：
-
-1. **数据概览**
-   - 平台识别结果
-   - 数据行数统计
-
-2. **基础统计**
-   - 互动数据均值（点赞、收藏、评论等）
-   - 互动数据最大值
-
-3. **地理位置分析**
-   - IP地点分布（如果数据中有）
-   - 文本中提及的地点
-
-4. **内容特征分析**
-   - 自定义特征提及频率
-   - Top 10 特征排名
-
-5. **情感分析**
-   - 评论情感倾向分布
-   - 积极评论占比
-
-6. **可视化图表**
-   - 互动数据分布图
-   - 相关性热图
-   - 热门地点排行
-   - 内容特征排行
-   - IP地点分布
-   - 数据质量概览
-
-7. **热门内容推荐**
-   - Top 3 高互动帖子
-
-8. **关键洞察**
-   - 用户最关注点
-   - 热门区域
-   - 情感倾向总结
-
----
-
-## 🔧 支持的平台
-
-| 平台 | 标识符 | 特征字段 |
-|-----|--------|---------|
-| 小红书 | `xiaohongshu` | `note_id`, `xsec_token`, `collected_count` |
-| 抖音 | `douyin` | `aweme_id`, `sec_uid` |
-| B站 | `bilibili` | `bvid`, `video_play_count` |
-| 微博 | `weibo` | `mid`, `mblogid` |
-| 快手 | `kuaishou` | (通用分析) |
-| 贴吧 | `tieba` | (通用分析) |
-| 知乎 | `zhihu` | (通用分析) |
-
----
-
-## 💡 使用技巧
-
-### 技巧1: 关键词设计原则
-- ✅ **同一维度**: 同一特征下的关键词应该是近义词或相关词
-- ✅ **避免重叠**: 不同特征之间关键词不要重复
-- ✅ **数量适中**: 每个特征3-5个关键词即可
-
-### 技巧2: 分析不同搜索主题
-```python
-# 搜索"咖啡厅办公" -> 咖啡厅分析配置
-# 搜索"美食推荐" -> 美食分析配置
-# 搜索"穿搭分享" -> 穿搭分析配置
-
-# 根据KEYWORDS自动选择配置
-KEYWORDS = "上海美食推荐"
-if "美食" in KEYWORDS or "好吃" in KEYWORDS:
-    custom_keywords = food_keywords
-elif "咖啡" in KEYWORDS or "办公" in KEYWORDS:
-    custom_keywords = cafe_keywords
-```
-
-### 技巧3: 组合多个搜索词
-```python
-# MediaCrawler配置
-KEYWORDS = "上海咖啡厅,上海自习室,上海图书馆"
-
-# 分析时自动合并所有数据
-# 所有相关的地点、特征会被统一分析
-```
-
----
-
-## 📁 文件结构
-
-```
-.claude/skills/mediacrawler-analyzer/
-├── analyze.py           # 主分析脚本
-├── skill.md             # 本文档
-└── README.md            # 快速开始指南
-```
-
----
-
-## 🆚 vs 旧版本对比
-
-| 特性 | 旧版本 (analyze_xiaohongshu.py) | 新版本 (mediacrawler-analyzer) |
-|-----|--------------------------------|--------------------------------|
-| 平台支持 | ❌ 仅小红书 | ✅ 全平台 (小红书/抖音/B站/微博等) |
-| 平台识别 | ❌ 硬编码 | ✅ 自动识别 |
-| 关键词配置 | ❌ 写死在代码中 | ✅ 参数化传入 |
-| 通用性 | ❌ 只能分析咖啡厅 | ✅ 可分析任何主题 |
-| 扩展性 | ❌ 需修改代码 | ✅ 传入参数即可 |
-
----
-
-## 🐛 常见问题
-
-### Q1: 如何知道识别的是哪个平台？
-**A**: 查看分析报告第一行：
-```
-✅ 平台识别: 小红书 (xiaohongshu)
-```
-
-### Q2: 如果识别错误怎么办？
-**A**: 当前版本依赖列名识别，识别准确率约95%。如果识别错误，可以检查CSV文件列名是否符合平台规范。
-
-### Q3: 如何添加新的平台支持？
-**A**: 修改 `analyze.py` 中的 `PLATFORM_ANALYSIS_CONFIG` 字典，添加新平台的配置。
-
-### Q4: 关键词不生效？
-**A**: 检查：
-1. 关键词格式是否正确
-2. 关键词是否在文本中出现
-3. 文本编码是否正确（UTF-8）
-
----
-
-## 📞 技术支持
-
-如有问题或建议，请查看：
-- MediaCrawler项目文档: `docs/`
-- 本技能配置文件: `.claude/skills/mediacrawler-analyzer/`
+| 文件 | 用途 |
+|------|------|
+| [analyze.py](./analyze.py) | 主分析脚本 |
+| [templates.py](./templates.py) | 模板库及匹配函数 |
+| [troubleshooting.md](./troubleshooting.md) | 常见问题及错误处理 |
