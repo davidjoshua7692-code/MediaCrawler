@@ -57,7 +57,8 @@
       "Bash(uv lock:*)",
       "Bash(\".venv/Scripts/python.exe\" -c \"import torch; print\\(torch.__version__\\); print\\(torch.cuda.is_available\\(\\)\\)\")",
       "Bash(\".venv/Scripts/python.exe\" -c \"import torch; print\\(''Torch:'', torch.__version__\\); print\\(''CUDA:'', torch.cuda.is_available\\(\\)\\)\")",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(python3:*)"
     ],
     "additionalDirectories": [
       "d:\\MediaCrawler-main\\.claude\\skills"

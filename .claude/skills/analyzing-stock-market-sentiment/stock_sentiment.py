@@ -156,13 +156,8 @@ def analyze_sentiment(text: str, use_finbert: bool = True) -> Tuple[str, int]:
         if finbert and finbert.finbert.model_loaded:
             try:
                 result = finbert.analyze(str(text))
-                sentiment = result['sentiment']
-                confidence = result['confidence']
-
-                # 转换置信度为得分（0-10）
-                score = int(confidence * 10)
-
-                return sentiment, score
+                # 返回完整结果，包含细粒度情绪
+                return result
             except Exception as e:
                 # FinBERT 失败，回退到关键词
                 pass
@@ -329,19 +324,80 @@ def analyze_stock_sentiment(
     bearish_comments = []
     neutral_comments = []
     uncertain_comments = []
+    fine_grained_stats = Counter()  # 细粒度情绪统计
+    layer_stats = Counter({'第1层(关键词明确)': 0, '第2层(FinBERT)': 0})  # 分层统计
 
     for idx, row in df_comments.iterrows():
         content = row.get('content', '')
-        sentiment, score = analyze_sentiment(content)
+        result = analyze_sentiment(content, use_finbert)
 
-        if sentiment == 'bullish':
-            bullish_comments.append((content, score, row.get('like_count', 0), row.get('ip_location', '')))
-        elif sentiment == 'bearish':
-            bearish_comments.append((content, score, row.get('like_count', 0), row.get('ip_location', '')))
-        elif sentiment == 'neutral':
-            neutral_comments.append((content, score, row.get('like_count', 0), row.get('ip_location', '')))
+        # 兼容返回值：可能是 (sentiment, score) 或 dict
+        if isinstance(result, dict):
+            sentiment = result['sentiment']
+            score = result['confidence'] * 10  # 转换为得分
+            fine_grained = result.get('fine_grained', None)
+            method = result.get('method', 'unknown')
+
+            # 统计分层
+            if method == 'keyword':
+                layer_stats['第1层(关键词明确)'] += 1
+            elif method == 'finbert':
+                layer_stats['第2层(FinBERT)'] += 1
+
+            # FinBERT 结果直接纳入细粒度统计
+            if fine_grained:
+                fine_grained_stats[fine_grained] += 1
+
+            # 将 FinBERT 结果加入分类列表
+            if sentiment == 'bullish':
+                bullish_comments.append((content, score, row.get('like_count', 0), row.get('ip_location', '')))
+            elif sentiment == 'bearish':
+                bearish_comments.append((content, score, row.get('like_count', 0), row.get('ip_location', '')))
+            elif sentiment == 'neutral':
+                neutral_comments.append((content, score, row.get('like_count', 0), row.get('ip_location', '')))
+            else:
+                uncertain_comments.append(content)
+
         else:
-            uncertain_comments.append(content)
+            # 关键词模式：需要重新计算得分差并映射到细粒度情绪
+            sentiment, score = result
+
+            # 重新计算关键词得分
+            text_lower = str(content).lower()
+            bullish_score = sum(1 for kw in BULLISH_KEYWORDS if kw in text_lower)
+            bearish_score = sum(1 for kw in BEARISH_KEYWORDS if kw in text_lower)
+            score_diff = abs(bullish_score - bearish_score)
+
+            # 只统计得分差 ≥ 2 的明确评论
+            if score_diff >= 2:
+                layer_stats['第1层(关键词明确)'] += 1
+
+                # 映射到细粒度情绪
+                if sentiment == 'bullish':
+                    if score_diff >= 4:
+                        fine_grained = '强烈看涨📈📈'
+                    else:  # score_diff = 2-3
+                        fine_grained = '看涨📈'
+                elif sentiment == 'bearish':
+                    if score_diff >= 4:
+                        fine_grained = '强烈看跌📉📉'
+                    else:  # score_diff = 2-3
+                        fine_grained = '看跌📉'
+                else:  # neutral
+                    fine_grained = '纯中性⚪'
+
+                if fine_grained:
+                    fine_grained_stats[fine_grained] += 1
+
+                # 只将明确评论(score_diff >= 2)加入分类列表
+                if sentiment == 'bullish':
+                    bullish_comments.append((content, score, row.get('like_count', 0), row.get('ip_location', '')))
+                elif sentiment == 'bearish':
+                    bearish_comments.append((content, score, row.get('like_count', 0), row.get('ip_location', '')))
+                elif sentiment == 'neutral':
+                    neutral_comments.append((content, score, row.get('like_count', 0), row.get('ip_location', '')))
+            # score_diff < 2 的模糊评论：在关键词模式下跳过，不加入任何统计
+            # (这些评论应该由FinBERT第2层处理，但use_finbert=False时没有第2层)
 
     total_classified = len(bullish_comments) + len(bearish_comments) + len(neutral_comments)
 
@@ -357,6 +413,22 @@ def analyze_stock_sentiment(
         print(f"  未明确: {len(uncertain_comments)} 条")
         print(f"\n  🎯 净多头情绪: {net_sentiment:+.1f}%")
 
+        # 显示分层统计
+        total_processed = sum(layer_stats.values())
+        if total_processed > 0:
+            print(f"\n  📊 分析分层统计:")
+            for layer, count in layer_stats.most_common():
+                pct = count / total_processed * 100
+                print(f"    {layer}: {count} 条 ({pct:.1f}%)")
+
+        # 显示细粒度情绪分布
+        if fine_grained_stats:
+            print(f"\n  📊 细粒度情绪分布 (9类):")
+            total_fine_grained = sum(fine_grained_stats.values())
+            for emotion, count in fine_grained_stats.most_common():
+                pct = count / total_fine_grained * 100
+                print(f"    {emotion}: {count} 条 ({pct:.1f}%)")
+
         # 判断情绪区间
         if net_sentiment > 50:
             sentiment_level = "🔴 极度贪婪（风险警告）"
@@ -371,7 +443,7 @@ def analyze_stock_sentiment(
         else:
             sentiment_level = "⚫ 极度恐惧（机会区间）"
 
-        print(f"  情绪区间: {sentiment_level}")
+        print(f"\n  情绪区间: {sentiment_level}")
 
     # 2. 价格目标分析
     print(f"\n{'='*80}")
@@ -582,9 +654,9 @@ def find_latest_dedup_files(data_dir: str = None) -> Tuple[Optional[str], Option
     if not data_dir.exists():
         return None, None
 
-    # 查找 -dedup 后缀的文件
-    comments_dedup_files = list(data_dir.glob("*comments*-dedup.csv"))
-    contents_dedup_files = list(data_dir.glob("*contents*-dedup.csv"))
+    # 查找 -dedup 后缀的文件（支持 search_comments_2026-01-20-dedup.csv 格式）
+    comments_dedup_files = list(data_dir.glob("*comments*dedup.csv"))
+    contents_dedup_files = list(data_dir.glob("*contents*dedup.csv"))
 
     # 按修改时间排序，取最新的
     comments_dedup = max(comments_dedup_files, key=lambda f: f.stat().st_mtime) if comments_dedup_files else None
@@ -659,67 +731,113 @@ Examples:
 
     args = parser.parse_args()
 
-    use_finbert = not args.no_finbert
+    # 解析股票名
+    stock_name = args.stock_name if args.stock_name != '目标股票' else '股票分析'
+
+    # 确定是否生成两份报告（关键词 + FinBERT）
+    if args.no_finbert:
+        # 用户指定 --no-finbert，只生成关键词报告
+        generate_both = False
+    else:
+        # 自动模式或手动模式都生成两份报告
+        generate_both = True
 
     # 捕获控制台输出
     old_stdout = sys.stdout
-    sys.stdout = mystdout = StringIO()
 
     try:
-        # 自动模式
+        # 自动模式或手动模式都需要先获取文件路径
         if args.auto:
+            sys.stdout = old_stdout  # 临时恢复，打印查找信息
             print(f"\n🔍 自动模式：查找最新去重文件...")
             print(f"   数据目录: {args.data_dir}")
 
             comments_file, contents_file = find_latest_dedup_files(args.data_dir)
 
+            # 如果找不到去重文件，自动运行去重脚本
             if not comments_file:
-                print("\n❌ 未找到去重评论文件")
-                print("   请先运行: python stock_sentiment_dedup.py --auto")
-                sys.stdout = old_stdout
-                sys.exit(1)
+                print("\n⚠️  未找到去重文件，自动运行去重脚本...")
+                print("="*80)
+                import subprocess
+                import locale
+                script_dir = Path(__file__).parent
+                dedup_script = script_dir / "stock_sentiment_dedup.py"
+                # 使用系统默认编码，避免 Windows GBK 编码问题
+                result = subprocess.run(
+                    ["uv", "run", "python", str(dedup_script), "--auto"],
+                    encoding=locale.getpreferredencoding(),
+                    errors='replace'
+                )
+                print("="*80)
+                if result.returncode == 0:
+                    print("✅ 去重完成！")
+                    # 重新查找去重文件
+                    comments_file, contents_file = find_latest_dedup_files(args.data_dir)
+                    if not comments_file:
+                        print("\n❌ 去重失败，无法继续分析")
+                        sys.exit(1)
+                else:
+                    print(f"\n❌ 去重脚本执行失败，返回码: {result.returncode}")
+                    sys.exit(1)
 
             print(f"   ✓ 评论文件: {comments_file.name}")
             if contents_file:
                 print(f"   ✓ 内容文件: {contents_file.name}")
 
-            # 从文件名提取股票名（例如：search_comments_2026-01-19-dedup.csv）
-            stock_name = args.stock_name
-            if stock_name == '目标股票':
-                # 尝试从文件路径推断
-                stock_name = "股票分析"
-
-            results = analyze_stock_sentiment(
-                comments_file=str(comments_file),
-                contents_file=str(contents_file) if contents_file else None,
-                stock_name=stock_name,
-                use_finbert=use_finbert
-            )
-
-        # 手动模式
+            comments_path = str(comments_file)
+            contents_path = str(contents_file) if contents_file else None
         else:
+            # 手动模式
             if not args.comments_file:
                 parser.error("请指定 --auto 自动模式，或提供 comments_file 路径")
 
-            results = analyze_stock_sentiment(
-                comments_file=args.comments_file,
-                contents_file=args.contents_file,
-                stock_name=args.stock_name,
-                use_finbert=use_finbert
+            comments_path = args.comments_file
+            contents_path = args.contents_file
+
+        # ========================================================================
+        # 第一份报告：关键词分析（不使用 FinBERT）
+        # ========================================================================
+        print("\n" + "="*80)
+        print("📊 生成第 1/2 份报告：关键词分析")
+        print("="*80)
+
+        sys.stdout = mystdout_keyword = StringIO()
+
+        analyze_stock_sentiment(
+            comments_file=comments_path,
+            contents_file=contents_path,
+            stock_name=stock_name,
+            use_finbert=False  # 纯关键词
+        )
+
+        keyword_report = mystdout_keyword.getvalue()
+        sys.stdout = old_stdout
+        print(keyword_report)  # 打印到控制台
+
+        save_report_to_file(keyword_report, stock_name, args.output_dir, suffix="_关键词")
+
+        # ========================================================================
+        # 第二份报告：FinBERT 分析
+        # ========================================================================
+        if generate_both:
+            print("\n" + "="*80)
+            print("🤖 生成第 2/2 份报告：FinBERT 分析")
+            print("="*80)
+
+            sys.stdout = mystdout_finbert = StringIO()
+
+            analyze_stock_sentiment(
+                comments_file=comments_path,
+                contents_file=contents_path,
+                stock_name=stock_name,
+                use_finbert=True  # FinBERT
             )
 
-        # 获取报告内容
-        report_content = mystdout.getvalue()
+            finbert_report = mystdout_finbert.getvalue()
+            sys.stdout = old_stdout
+            print(finbert_report)  # 打印到控制台
 
-        # 恢复标准输出
-        sys.stdout = old_stdout
-
-        # 打印报告到控制台
-        print(report_content)
-
-        # 保存报告到文件
-        stock_name_used = args.stock_name if args.stock_name != '目标股票' else '股票分析'
-        save_report_to_file(report_content, stock_name_used, args.output_dir)
+            save_report_to_file(finbert_report, stock_name, args.output_dir, suffix="_FinBERT")
 
     except Exception as e:
         sys.stdout = old_stdout
