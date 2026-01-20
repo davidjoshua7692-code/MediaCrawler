@@ -19,7 +19,7 @@
 
 # 基础配置
 PLATFORM = "xhs"  # 平台，xhs | dy | ks | bili | wb | tieba | zhihu
-KEYWORDS = "上海适合久坐咖啡厅,上海安静办公咖啡厅,上海有插座咖啡厅,上海适合工作餐厅,上海自习空间,上海独处咖啡厅"  # 关键词搜索配置，以英文逗号分隔
+KEYWORDS = "宝山咖啡厅,宝山办公空间,宝山自习室,宝山咖啡馆久坐,宝山工作咖啡厅,宝山安静咖啡厅"  # 关键词搜索配置，以英文逗号分隔
 LOGIN_TYPE = "qrcode"  # qrcode or phone or cookie
 COOKIES = ""
 CRAWLER_TYPE = (

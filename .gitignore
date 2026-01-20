@@ -185,3 +185,6 @@ database/*.db
 
 # report
 REPORT
+
+# workshop
+workspace

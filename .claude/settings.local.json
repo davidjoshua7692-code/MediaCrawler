@@ -19,7 +19,14 @@
       "mcp__web-reader__webReader",
       "mcp__zread__get_repo_structure",
       "Skill(csv-data-summarizer)",
-      "Skill(csv-data-summarizer:*)"
+      "Skill(csv-data-summarizer:*)",
+      "Skill(analyzing-social-media-data)",
+      "Skill(analyzing-social-media-data:*)",
+      "Bash(node:*)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npx playwright install:*)",
+      "Bash(pip install:*)"
     ]
   },
   "enabledPlugins": {
