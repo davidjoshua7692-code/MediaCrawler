@@ -60,7 +60,7 @@ class FinBertAnalyzer:
                 model=model,
                 tokenizer=tokenizer,
                 top_k=None,  # 返回所有分数
-                device=-1  # CPU，如果有GPU改成0
+                device=0  # GPU (RTX 4070 Ti SUPER)
             )
 
             self.model_loaded = True
@@ -134,8 +134,12 @@ class FinBertAnalyzer:
                 'bearish': next((s['score'] for s in scores if s['label'] in ['LABEL_2', 'Negative']), 0.0),
             }
 
+            # 细化情绪分类（9类）
+            fine_grained_sentiment = self._get_fine_grained_sentiment(scores_dict)
+
             return {
                 'sentiment': sentiment,
+                'fine_grained': fine_grained_sentiment,  # 新增：细粒度情绪
                 'confidence': confidence,
                 'scores': scores_dict,
                 'method': 'finbert'
@@ -144,6 +148,59 @@ class FinBertAnalyzer:
         except Exception as e:
             print(f"⚠️  FinBERT 分析出错: {e}，回退到关键词匹配")
             return self._keyword_analyze(text)
+
+    def _get_fine_grained_sentiment(self, scores: Dict[str, float]) -> str:
+        """
+        根据分数分布获取细粒度情绪（9类）
+
+        Args:
+            scores: {'bullish': 0.99, 'bearish': 0.005, 'neutral': 0.005}
+
+        Returns:
+            细粒度情绪标签
+        """
+        bullish = scores.get('bullish', 0.0)
+        bearish = scores.get('bearish', 0.0)
+        neutral = scores.get('neutral', 0.0)
+
+        # 强烈看涨：Positive > 80% 且 Positive > Negative*2
+        if bullish > 0.8 and bullish > bearish * 2:
+            return '强烈看涨📈📈'
+
+        # 看涨：Positive > 60% 且 Positive > Negative*1.5
+        if bullish > 0.6 and bullish > bearish * 1.5:
+            return '看涨📈'
+
+        # 偏涨：50% < Positive ≤ 60%
+        if 0.5 < bullish <= 0.6:
+            return '偏涨📊'
+
+        # 强烈看跌：Negative > 80% 且 Negative > Positive*2
+        if bearish > 0.8 and bearish > bullish * 2:
+            return '强烈看跌📉📉'
+
+        # 看跌：Negative > 60% 且 Negative > Positive*1.5
+        if bearish > 0.6 and bearish > bullish * 1.5:
+            return '看跌📉'
+
+        # 偏跌：50% < Negative ≤ 60%
+        if 0.5 < bearish <= 0.6:
+            return '偏跌📊'
+
+        # 中性区间
+        if neutral > 0.4:
+            if bearish > bullish * 1.2:
+                return '中性偏空⚪📉'
+            elif bullish > bearish * 1.2:
+                return '中性偏多⚪📈'
+            else:
+                return '纯中性⚪'
+
+        # 低置信度（所有分数都较低）
+        if max(bullish, bearish, neutral) < 0.5:
+            return '不确定❓'
+
+        return '中性⚪'
 
     def _keyword_analyze(self, text: str) -> Dict[str, any]:
         """

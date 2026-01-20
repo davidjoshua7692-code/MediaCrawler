@@ -39,11 +39,21 @@ dependencies = [
     "pytest-asyncio>=0.21.0",
     "websockets>=15.0.1",
     "asyncpg>=0.31.0",
-    "torch>=2.9.1",
+    "torch>=2.5.0",
     "transformers>=4.57.6",
     "huggingface-hub>=0.36.0",
 ]
 
+# PyPI官方源
 [[tool.uv.index]]
-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+url = "https://pypi.org/simple"
 default = true
+
+# PyTorch CUDA 12.1专用源
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu121" }

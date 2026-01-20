@@ -83,6 +83,32 @@ except ImportError:
 _finbert_analyzer = None
 
 
+def get_project_paths():
+    """
+    获取项目路径（锚定到.claude文件夹）
+
+    Returns:
+        dict: {
+            'project_root': 项目根目录,
+            'data_dir': 数据目录,
+            'model_dir': 模型目录,
+            'report_dir': 报告目录（项目根目录/REPORT）
+        }
+    """
+    script_dir = Path(__file__).parent
+    # .claude/skills/analyzing-stock-market-sentiment/ -> .claude/
+    claude_dir = script_dir.parent.parent
+    # .claude/ -> 项目根目录
+    project_root = claude_dir.parent
+
+    return {
+        'project_root': project_root,
+        'data_dir': project_root / "data" / "xhs" / "csv",
+        'model_dir': project_root / "models" / "finbert_chinese",
+        'report_dir': project_root / "REPORT"  # 改为项目根目录/REPORT
+    }
+
+
 def get_finbert_analyzer():
     """获取 FinBERT 分析器（单例模式）"""
     global _finbert_analyzer
@@ -92,8 +118,9 @@ def get_finbert_analyzer():
 
     if _finbert_analyzer is None:
         try:
+            paths = get_project_paths()
             _finbert_analyzer = HybridSentimentAnalyzer(
-                finbert_model_path="../../../models/finbert_chinese/"
+                model_path=str(paths['model_dir'])
             )
             if _finbert_analyzer.finbert.model_loaded:
                 print("✅ FinBERT 模型已启用（混合模式）")
@@ -536,12 +563,96 @@ def analyze_stock_sentiment(
 # 命令行接口
 # ============================================================================
 
+def find_latest_dedup_files(data_dir: str = None) -> Tuple[Optional[str], Optional[str]]:
+    """
+    自动查找最新的去重CSV文件
+
+    Args:
+        data_dir: 数据目录路径（默认自动查找）
+
+    Returns:
+        (comments_dedup_file, contents_dedup_file) 找到的文件路径，未找到返回None
+    """
+    if data_dir is None:
+        paths = get_project_paths()
+        data_dir = paths['data_dir']
+    else:
+        data_dir = Path(data_dir)
+
+    if not data_dir.exists():
+        return None, None
+
+    # 查找 -dedup 后缀的文件
+    comments_dedup_files = list(data_dir.glob("*comments*-dedup.csv"))
+    contents_dedup_files = list(data_dir.glob("*contents*-dedup.csv"))
+
+    # 按修改时间排序，取最新的
+    comments_dedup = max(comments_dedup_files, key=lambda f: f.stat().st_mtime) if comments_dedup_files else None
+    contents_dedup = max(contents_dedup_files, key=lambda f: f.stat().st_mtime) if contents_dedup_files else None
+
+    return comments_dedup, contents_dedup
+
+
+def save_report_to_file(report_content: str, stock_name: str, output_dir: str = None, suffix: str = ""):
+    """
+    保存报告到文件（输出到项目根目录/REPORT/）
+
+    Args:
+        report_content: 报告内容
+        stock_name: 股票名称
+        output_dir: 输出目录（默认项目根目录/REPORT/）
+        suffix: 文件名后缀（用于区分不同报告）
+    """
+    from datetime import datetime
+
+    if output_dir is None:
+        paths = get_project_paths()
+        output_path = paths['report_dir']
+    else:
+        output_path = Path(output_dir)
+
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # 生成文件名：股票名_日期时间_后缀.txt
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{stock_name}_情绪分析_{timestamp}{suffix}.txt"
+    file_path = output_path / filename
+
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(report_content)
+
+    print(f"\n📄 报告已保存到: {file_path}")
+    return str(file_path)
+
+
 if __name__ == "__main__":
     import sys
     import argparse
+    from io import StringIO
 
-    parser = argparse.ArgumentParser(description='股市情绪分析器')
-    parser.add_argument('comments_file', help='评论CSV文件路径')
+    parser = argparse.ArgumentParser(
+        description='股市情绪分析器',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # 自动模式：查找最新去重文件，输出到 REPORT/
+  python stock_sentiment.py --auto
+
+  # 手动指定文件
+  python stock_sentiment.py data/comments-dedup.csv data/contents-dedup.csv "紫金矿业"
+
+  # 禁用 FinBERT
+  python stock_sentiment.py --auto --no-finbert
+        """
+    )
+
+    parser.add_argument('--auto', action='store_true',
+                        help='自动模式：查找最新去重文件')
+    parser.add_argument('--data-dir', type=str, default=None,
+                        help='数据目录（默认: 自动从项目根目录查找）')
+    parser.add_argument('--output-dir', type=str, default=None,
+                        help='报告输出目录（默认: 项目根目录/REPORT/）')
+    parser.add_argument('comments_file', nargs='?', help='评论CSV文件路径')
     parser.add_argument('contents_file', nargs='?', help='内容CSV文件路径（可选）')
     parser.add_argument('stock_name', nargs='?', default='目标股票', help='股票名称')
     parser.add_argument('--no-finbert', action='store_true', help='禁用 FinBERT，仅使用关键词匹配')
@@ -550,9 +661,69 @@ if __name__ == "__main__":
 
     use_finbert = not args.no_finbert
 
-    results = analyze_stock_sentiment(
-        comments_file=args.comments_file,
-        contents_file=args.contents_file,
-        stock_name=args.stock_name,
-        use_finbert=use_finbert
-    )
+    # 捕获控制台输出
+    old_stdout = sys.stdout
+    sys.stdout = mystdout = StringIO()
+
+    try:
+        # 自动模式
+        if args.auto:
+            print(f"\n🔍 自动模式：查找最新去重文件...")
+            print(f"   数据目录: {args.data_dir}")
+
+            comments_file, contents_file = find_latest_dedup_files(args.data_dir)
+
+            if not comments_file:
+                print("\n❌ 未找到去重评论文件")
+                print("   请先运行: python stock_sentiment_dedup.py --auto")
+                sys.stdout = old_stdout
+                sys.exit(1)
+
+            print(f"   ✓ 评论文件: {comments_file.name}")
+            if contents_file:
+                print(f"   ✓ 内容文件: {contents_file.name}")
+
+            # 从文件名提取股票名（例如：search_comments_2026-01-19-dedup.csv）
+            stock_name = args.stock_name
+            if stock_name == '目标股票':
+                # 尝试从文件路径推断
+                stock_name = "股票分析"
+
+            results = analyze_stock_sentiment(
+                comments_file=str(comments_file),
+                contents_file=str(contents_file) if contents_file else None,
+                stock_name=stock_name,
+                use_finbert=use_finbert
+            )
+
+        # 手动模式
+        else:
+            if not args.comments_file:
+                parser.error("请指定 --auto 自动模式，或提供 comments_file 路径")
+
+            results = analyze_stock_sentiment(
+                comments_file=args.comments_file,
+                contents_file=args.contents_file,
+                stock_name=args.stock_name,
+                use_finbert=use_finbert
+            )
+
+        # 获取报告内容
+        report_content = mystdout.getvalue()
+
+        # 恢复标准输出
+        sys.stdout = old_stdout
+
+        # 打印报告到控制台
+        print(report_content)
+
+        # 保存报告到文件
+        stock_name_used = args.stock_name if args.stock_name != '目标股票' else '股票分析'
+        save_report_to_file(report_content, stock_name_used, args.output_dir)
+
+    except Exception as e:
+        sys.stdout = old_stdout
+        print(f"\n❌ 分析失败: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)

@@ -11,6 +11,19 @@ sys.path.insert(0, str(Path(__file__).parent))
 from finbert_analyzer import FinBertAnalyzer, HybridSentimentAnalyzer
 
 
+def get_project_paths():
+    """获取项目路径（锚定到.claude文件夹）"""
+    script_dir = Path(__file__).parent
+    # .claude/skills/analyzing-stock-market-sentiment/ -> .claude/
+    claude_dir = script_dir.parent.parent
+    project_root = claude_dir.parent
+
+    return {
+        'project_root': project_root,
+        'model_dir': project_root / "models" / "finbert_chinese"
+    }
+
+
 def test_finbert():
     """测试 FinBERT 分析器"""
 
@@ -36,7 +49,8 @@ def test_finbert():
     print("="*80 + "\n")
 
     # 初始化 FinBERT
-    analyzer = FinBertAnalyzer(model_path="../../../models/finbert_chinese/")
+    paths = get_project_paths()
+    analyzer = FinBertAnalyzer(model_path=str(paths['model_dir']))
 
     if analyzer.model_loaded:
         for i, text in enumerate(test_cases, 1):
@@ -52,8 +66,14 @@ def test_finbert():
                 'neutral': '中性⚪'
             }[sentiment]
 
+            # 获取细粒度情绪
+            if isinstance(result, dict) and 'fine_grained' in result:
+                fine_grained = result['fine_grained']
+            else:
+                fine_grained = sentiment_cn.get(sentiment, '中性')
+
             print(f"{i}. {text}")
-            print(f"   → {sentiment_cn} (置信度: {conf:.2%}) [{method}]")
+            print(f"   → {fine_grained} (置信度: {conf:.2%}) [{method}]")
 
             if result['scores']:
                 scores = result['scores']
@@ -73,7 +93,8 @@ def test_finbert():
     print("="*80 + "\n")
 
     # 测试混合分析器
-    hybrid = HybridSentimentAnalyzer(model_path="../../../models/finbert_chinese/")
+    paths = get_project_paths()
+    hybrid = HybridSentimentAnalyzer(model_path=str(paths['model_dir']))
 
     for i, text in enumerate(test_cases, 1):
         result = hybrid.analyze(text)
@@ -87,13 +108,19 @@ def test_finbert():
             'neutral': '中性⚪'
         }[sentiment]
 
+        # 获取细粒度情绪
+        if isinstance(result, dict) and 'fine_grained' in result:
+            fine_grained = result['fine_grained']
+        else:
+            fine_grained = sentiment_cn.get(sentiment, '中性')
+
         method_label = {
             'finbert': 'FinBERT 🤖',
             'keyword': '关键词 🔑'
         }[method]
 
         print(f"{i}. {text}")
-        print(f"   → {sentiment_cn} ({method_label}, 置信度: {conf:.2%})")
+        print(f"   → {fine_grained} ({method_label}, 置信度: {conf:.2%})")
         print()
 
     print("="*80)
