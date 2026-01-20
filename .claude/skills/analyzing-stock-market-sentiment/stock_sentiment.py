@@ -1,0 +1,500 @@
+"""
+股市情绪分析器
+专门针对股票讨论进行多空情绪分析
+支持小红书、微博、股吧等平台数据
+"""
+import pandas as pd
+import re
+from collections import Counter
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional
+import sys
+
+
+# ============================================================================
+# 股市专属关键词配置
+# ============================================================================
+
+# 多空关键词
+BULLISH_KEYWORDS = [
+    '涨', '加仓', '买入', '看多', '起飞', '突破', '牛市', '向上',
+    '持有', '不卖', '继续涨', '还能涨', '目标', '好', '牛', '强',
+    '稳', '值', '低吸', '补仓', '机会', '买', '持仓', '拿住',
+    '看好', '值得', '价值', '优秀', '龙头', '上涨', '攀升'
+]
+
+BEARISH_KEYWORDS = [
+    '跌', '减仓', '卖出', '看空', '回调', '熊市', '向下',
+    '出货', '高估', '贵', '弱', '风险', '怕', '跌了', '清仓',
+    '割肉', '亏损', '套', '怕跌', '还会跌', '洗盘', '危险',
+    '担心', '怕被套', '止损', '离场', '逃顶', '泡沫'
+]
+
+NEUTRAL_KEYWORDS = [
+    '观望', '等待', '再看看', '不确定', '震荡', '横盘',
+    '整理', '犹豫', '暂时不动'
+]
+
+# 投资行为关键词
+BEHAVIOR_KEYWORDS = {
+    '加仓/买入': ['加仓', '买入', '买了', '补仓', '抄底', '建仓', '上车'],
+    '减仓/卖出': ['减仓', '卖出', '卖了', '清仓', '止盈', '割肉', '跑了', '下车'],
+    '持有/观望': ['持有', '拿住', '不动', '观望', '等待', '躺平', '锁仓']
+}
+
+# 关注主题关键词
+THEME_KEYWORDS = {
+    '黄金': ['黄金', '金', '贵金属', '金价'],
+    '铜价': ['铜', '铜价', 'lme', '有色', '工业金属'],
+    '业绩/财报': ['业绩', '财报', '利润', '营收', '年报', '中报', '季报', 'roe'],
+    '估值': ['估值', '市盈率', 'pe', '贵了', '便宜', '高估', '低估', '泡沫'],
+    '分红': ['分红', '股息', '派息', '股息率'],
+    '锂矿': ['锂', '锂矿', '碳酸锂', '锂资源'],
+    '宏观经济': ['美联储', '降息', '利率', '美元', '宏观', '经济', '通胀'],
+    '技术面': ['支撑', '压力', '阻力', '突破', '趋势', '震荡', '均线', 'macd', 'k线']
+}
+
+# 风险信号关键词
+RISK_SIGNALS = {
+    '情绪过热': ['从不套人', '只会涨', '闭眼买', '稳赚', '肯定涨', '无脑买'],
+    '高位震荡': ['不是舒服的上车点', '等回调', '观望一下', '再看看'],
+    '获利回吐': ['获利了结', '落袋为安', '先出来', '短线资金'],
+    'FOMO情绪': ['卖飞', '买少', '后悔', '错过', '没买']
+}
+
+
+# ============================================================================
+# 核心分析函数
+# ============================================================================
+
+def analyze_sentiment(text: str) -> Tuple[str, int]:
+    """
+    分析单条文本的情绪
+
+    Args:
+        text: 文本内容
+
+    Returns:
+        (情绪类型, 得分) - 情绪类型为 'bullish', 'bearish', 'neutral', 'uncertain'
+    """
+    if pd.isna(text):
+        return 'uncertain', 0
+
+    text_lower = str(text).lower()
+
+    bullish_score = sum(1 for kw in BULLISH_KEYWORDS if kw in text_lower)
+    bearish_score = sum(1 for kw in BEARISH_KEYWORDS if kw in text_lower)
+    neutral_score = sum(1 for kw in NEUTRAL_KEYWORDS if kw in text_lower)
+
+    if bullish_score > bearish_score and bullish_score > neutral_score:
+        return 'bullish', bullish_score
+    elif bearish_score > bullish_score and bearish_score > neutral_score:
+        return 'bearish', bearish_score
+    elif neutral_score > 0:
+        return 'neutral', neutral_score
+    else:
+        return 'uncertain', 0
+
+
+def extract_price_targets(text: str) -> List[float]:
+    """
+    提取文本中的价格目标
+
+    Args:
+        text: 文本内容
+
+    Returns:
+        价格目标列表
+    """
+    if pd.isna(text):
+        return []
+
+    # 匹配数字，合理股价范围 5-200元
+    price_pattern = r'(\d{1,3}\.?\d*)\s*[元块]?'
+    prices = []
+
+    for match in re.finditer(price_pattern, str(text)):
+        try:
+            price = float(match.group(1))
+            # 过滤合理股价范围
+            if 5 <= price <= 200:
+                # 排除明显不是股价的数字（如100股、10年等）
+                if not any(exclude in str(text) for exclude in ['股', '年', '倍', '%', '次']):
+                    prices.append(price)
+        except (ValueError, IndexError):
+            continue
+
+    return prices
+
+
+def analyze_investment_behavior(text: str) -> Optional[str]:
+    """
+    识别投资行为
+
+    Args:
+        text: 文本内容
+
+    Returns:
+        行为类型或None
+    """
+    if pd.isna(text):
+        return None
+
+    text_lower = str(text).lower()
+
+    for behavior, keywords in BEHAVIOR_KEYWORDS.items():
+        if any(kw in text_lower for kw in keywords):
+            return behavior
+
+    return None
+
+
+def detect_themes(text: str) -> List[str]:
+    """
+    检测文本中的投资主题
+
+    Args:
+        text: 文本内容
+
+    Returns:
+        主题列表
+    """
+    if pd.isna(text):
+        return []
+
+    text_lower = str(text).lower()
+    detected_themes = []
+
+    for theme, keywords in THEME_KEYWORDS.items():
+        if any(kw in text_lower for kw in keywords):
+            detected_themes.append(theme)
+
+    return detected_themes
+
+
+def detect_risk_signals(text: str) -> List[str]:
+    """
+    检测风险信号
+
+    Args:
+        text: 文本内容
+
+    Returns:
+        风险信号列表
+    """
+    if pd.isna(text):
+        return []
+
+    text_lower = str(text).lower()
+    signals = []
+
+    for signal_type, keywords in RISK_SIGNALS.items():
+        if any(kw in text_lower for kw in keywords):
+            signals.append(signal_type)
+
+    return signals
+
+
+# ============================================================================
+# 主分析函数
+# ============================================================================
+
+def analyze_stock_sentiment(
+    comments_file: str,
+    contents_file: str = None,
+    stock_name: str = '目标股票',
+    output_dir: str = None
+) -> Dict:
+    """
+    综合分析股票讨论情绪
+
+    Args:
+        comments_file: 评论CSV文件路径
+        contents_file: 内容CSV文件路径（可选）
+        stock_name: 股票名称
+        output_dir: 输出目录
+
+    Returns:
+        分析结果字典
+    """
+    print(f"\n{'='*80}")
+    print(f"📊 {stock_name} - 股市情绪分析报告")
+    print(f"{'='*80}\n")
+
+    # 读取数据
+    df_comments = pd.read_csv(comments_file)
+    df_contents = pd.read_csv(contents_file) if contents_file else None
+
+    print(f"✅ 数据加载成功!")
+    print(f"   评论数据: {len(df_comments)} 条")
+    if df_contents is not None:
+        print(f"   内容数据: {len(df_contents)} 条")
+
+    # 1. 多空情绪分析
+    print(f"\n{'='*80}")
+    print(f"📈 一、多空情绪分布")
+    print(f"{'='*80}\n")
+
+    bullish_comments = []
+    bearish_comments = []
+    neutral_comments = []
+    uncertain_comments = []
+
+    for idx, row in df_comments.iterrows():
+        content = row.get('content', '')
+        sentiment, score = analyze_sentiment(content)
+
+        if sentiment == 'bullish':
+            bullish_comments.append((content, score, row.get('like_count', 0), row.get('ip_location', '')))
+        elif sentiment == 'bearish':
+            bearish_comments.append((content, score, row.get('like_count', 0), row.get('ip_location', '')))
+        elif sentiment == 'neutral':
+            neutral_comments.append((content, score, row.get('like_count', 0), row.get('ip_location', '')))
+        else:
+            uncertain_comments.append(content)
+
+    total_classified = len(bullish_comments) + len(bearish_comments) + len(neutral_comments)
+
+    if total_classified > 0:
+        bullish_pct = len(bullish_comments) / total_classified * 100
+        bearish_pct = len(bearish_comments) / total_classified * 100
+        neutral_pct = len(neutral_comments) / total_classified * 100
+        net_sentiment = bullish_pct - bearish_pct
+
+        print(f"  看涨（多头）: {len(bullish_comments)} 条 ({bullish_pct:.1f}%)")
+        print(f"  看跌（空头）: {len(bearish_comments)} 条 ({bearish_pct:.1f}%)")
+        print(f"  观望（中性）: {len(neutral_comments)} 条 ({neutral_pct:.1f}%)")
+        print(f"  未明确: {len(uncertain_comments)} 条")
+        print(f"\n  🎯 净多头情绪: {net_sentiment:+.1f}%")
+
+        # 判断情绪区间
+        if net_sentiment > 50:
+            sentiment_level = "🔴 极度贪婪（风险警告）"
+        elif net_sentiment > 30:
+            sentiment_level = "🟠 贪婪（需谨慎）"
+        elif net_sentiment > 10:
+            sentiment_level = "🟢 适度看多（健康）"
+        elif net_sentiment > -10:
+            sentiment_level = "⚪ 中性（观望）"
+        elif net_sentiment > -30:
+            sentiment_level = "🔵 适度看空（谨慎）"
+        else:
+            sentiment_level = "⚫ 极度恐惧（机会区间）"
+
+        print(f"  情绪区间: {sentiment_level}")
+
+    # 2. 价格目标分析
+    print(f"\n{'='*80}")
+    print(f"💰 二、价格预期分析")
+    print(f"{'='*80}\n")
+
+    all_price_targets = []
+    for idx, row in df_comments.iterrows():
+        content = row.get('content', '')
+        prices = extract_price_targets(content)
+        for price in prices:
+            all_price_targets.append((content, price, row.get('like_count', 0)))
+
+    if all_price_targets:
+        prices_only = [p[1] for p in all_price_targets]
+        print(f"  提及价格目标: {len(all_price_targets)} 次")
+        print(f"  价格区间: {min(prices_only):.2f} - {max(prices_only):.2f} 元")
+        print(f"  平均预期: {sum(prices_only)/len(prices_only):.2f} 元")
+
+        # 价格频次统计
+        price_counter = Counter(prices_only)
+        top_prices = price_counter.most_common(10)
+
+        print(f"\n  热门目标价位 Top 10:")
+        for price, count in top_prices:
+            # 计算支持度（点赞数）
+            related_comments = [c for c in all_price_targets if abs(c[1] - price) < 0.01]
+            total_likes = sum(c[2] for c in related_comments)
+            print(f"    {price:6.2f} 元: {count:2d}次提及 | 👍{total_likes} 支持")
+
+    # 3. 投资行为分析
+    print(f"\n{'='*80}")
+    print(f"🎯 三、投资者行为分析")
+    print(f"{'='*80}\n")
+
+    behavior_stats = {behavior: 0 for behavior in BEHAVIOR_KEYWORDS.keys()}
+    for idx, row in df_comments.iterrows():
+        content = row.get('content', '')
+        behavior = analyze_investment_behavior(content)
+        if behavior:
+            behavior_stats[behavior] += 1
+
+    for behavior, count in behavior_stats.items():
+        if count > 0:
+            print(f"  {behavior}: {count} 条评论")
+
+    # 4. 核心关注主题
+    print(f"\n{'='*80}")
+    print(f"🔍 四、核心关注主题")
+    print(f"{'='*80}\n")
+
+    theme_counter = Counter()
+    for idx, row in df_comments.iterrows():
+        content = row.get('content', '')
+        themes = detect_themes(content)
+        theme_counter.update(themes)
+
+    if theme_counter:
+        print(f"  主题提及排名:")
+        for theme, count in theme_counter.most_common():
+            print(f"    {theme}: {count} 条提及")
+
+    # 5. 看涨理由 Top 10
+    print(f"\n{'='*80}")
+    print(f"✅ 五、看涨理由 Top 10（按点赞排序）")
+    print(f"{'='*80}\n")
+
+    bullish_comments_sorted = sorted(bullish_comments, key=lambda x: x[2], reverse=True)
+    for i, (content, score, likes, location) in enumerate(bullish_comments_sorted[:10], 1):
+        display_content = content[:80] + '...' if len(content) > 80 else content
+        print(f"{i:2d}. [{location}] 👍{likes}: {display_content}")
+
+    # 6. 看跌/担忧理由 Top 10
+    print(f"\n{'='*80}")
+    print(f"⚠️  六、看跌/担忧理由 Top 10")
+    print(f"{'='*80}\n")
+
+    bearish_comments_sorted = sorted(bearish_comments, key=lambda x: x[2], reverse=True)
+    for i, (content, score, likes, location) in enumerate(bearish_comments_sorted[:10], 1):
+        display_content = content[:80] + '...' if len(content) > 80 else content
+        print(f"{i:2d}. [{location}] 👍{likes}: {display_content}")
+
+    # 7. 投资者故事
+    print(f"\n{'='*80}")
+    print(f"📖 七、投资者故事与操作")
+    print(f"{'='*80}\n")
+
+    stories = []
+    for idx, row in df_comments.iterrows():
+        content = str(row.get('content', ''))
+        if pd.notna(content) and any(kw in content for kw in ['买了', '卖了', '卖飞', '后悔', '可惜', '庆幸', '持有', '年']):
+            likes = row.get('like_count', 0)
+            if likes and likes > 5:  # 只取高互动故事
+                stories.append((content, likes, row.get('ip_location', '')))
+
+    stories_sorted = sorted(stories, key=lambda x: x[1], reverse=True)
+    for i, (content, likes, location) in enumerate(stories_sorted[:8], 1):
+        display_content = content[:100] + '...' if len(content) > 100 else content
+        print(f"{i}. [{location}] 👍{likes}: {display_content}")
+
+    # 8. 风险信号识别
+    print(f"\n{'='*80}")
+    print(f"🚨 八、风险信号识别")
+    print(f"{'='*80}\n")
+
+    risk_signals_found = Counter()
+    risk_examples = {signal: [] for signal in RISK_SIGNALS.keys()}
+
+    for idx, row in df_comments.iterrows():
+        content = row.get('content', '')
+        signals = detect_risk_signals(content)
+        for signal in signals:
+            risk_signals_found[signal] += 1
+            if len(risk_examples[signal]) < 3:  # 每类信号保留3个例子
+                risk_examples[signal].append(content[:60])
+
+    if risk_signals_found:
+        print(f"  检测到风险信号:")
+        for signal, count in risk_signals_found.most_common():
+            print(f"\n  ⚠️  {signal}: {count} 条提及")
+            for example in risk_examples[signal]:
+                print(f"     - {example}...")
+    else:
+        print("  未检测到明显风险信号")
+
+    # 9. 综合投资建议
+    print(f"\n{'='*80}")
+    print(f"💡 九、综合投资洞察")
+    print(f"{'='*80}\n")
+
+    insights = []
+
+    # 情绪面
+    if total_classified > 0:
+        if net_sentiment > 50:
+            insights.append("⚠️  情绪过热：净多头超过50%，需警惕短期回调风险")
+        elif net_sentiment > 30:
+            insights.append("⚠️  情绪偏热：建议关注获利回吐压力")
+        elif net_sentiment > 10:
+            insights.append("✅ 情绪健康：多头占优，市场信心较强")
+        elif net_sentiment > -10:
+            insights.append("⚪ 情绪中性：多空分歧，等待方向选择")
+        else:
+            insights.append("💡 情绪偏空：可能存在机会区间")
+
+    # 价格面
+    if all_price_targets:
+        avg_price = sum(p[1] for p in all_price_targets) / len(all_price_targets)
+        insights.append(f"💰 价格共识：市场平均目标价 {avg_price:.2f} 元")
+
+    # 行为面
+    total_behavior = sum(behavior_stats.values())
+    if total_behavior > 0:
+        buy_ratio = behavior_stats.get('加仓/买入', 0) / total_behavior * 100
+        if buy_ratio > 60:
+            insights.append(f"📈 买入意愿强：{buy_ratio:.1f}% 投资者计划加仓")
+        elif buy_ratio < 40:
+            insights.append(f"📉 卖出压力增：{buy_ratio:.1f}% 投资者计划买入")
+
+    # 风险面
+    if risk_signals_found:
+        top_risk = risk_signals_found.most_common(1)[0]
+        insights.append(f"🚨 风险提示：检测到'{top_risk[0]}'信号 {top_risk[1]} 次")
+
+    for i, insight in enumerate(insights, 1):
+        print(f"  {i}. {insight}")
+
+    print(f"\n{'='*80}")
+    print(f"✅ 分析完成!")
+    print(f"{'='*80}\n")
+
+    # 返回结果
+    return {
+        'total_comments': len(df_comments),
+        'bullish_count': len(bullish_comments),
+        'bearish_count': len(bearish_comments),
+        'neutral_count': len(neutral_comments),
+        'bullish_pct': bullish_pct if total_classified > 0 else 0,
+        'bearish_pct': bearish_pct if total_classified > 0 else 0,
+        'net_sentiment': net_sentiment if total_classified > 0 else 0,
+        'price_targets': all_price_targets,
+        'behavior_stats': behavior_stats,
+        'theme_stats': dict(theme_counter),
+        'risk_signals': dict(risk_signals_found)
+    }
+
+
+# ============================================================================
+# 命令行接口
+# ============================================================================
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) < 2:
+        print("用法: python stock_sentiment.py <评论文件> [内容文件] [股票名称]")
+        print("\n示例:")
+        print("  python stock_sentiment.py data/xhs/csv/search_comments.csv")
+        print("  python stock_sentiment.py data/xhs/csv/search_comments.csv data/xhs/csv/search_contents.csv")
+        print("  python stock_sentiment.py data/xhs/csv/search_comments.csv data/xhs/csv/search_contents.csv '紫金矿业'")
+        sys.exit(1)
+
+    comments_file = sys.argv[1]
+    contents_file = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].endswith('.csv') else None
+    stock_name = sys.argv[3] if len(sys.argv) > 3 else '目标股票'
+
+    # 如果第二个参数是CSV文件
+    if len(sys.argv) > 2 and sys.argv[2].endswith('.csv'):
+        contents_file = sys.argv[2]
+        stock_name = sys.argv[4] if len(sys.argv) > 4 else '目标股票'
+
+    results = analyze_stock_sentiment(
+        comments_file=comments_file,
+        contents_file=contents_file,
+        stock_name=stock_name
+    )

@@ -11,7 +11,9 @@ AI智能推理：解析关键词 + 完善参数配置
     ↓
 执行爬虫自动化脚本
     ↓
-⚠️ 使用 `analyzing-social-media-data` skill 进行数据分析 
+⚠️ 选择数据分析工具：
+   • 股票/投资分析 → `analyzing-stock-market-sentiment` skill
+   • 其他内容分析 → `analyzing-social-media-data` skill
     ↓
 结果解读，转化为用户洞察
 ```

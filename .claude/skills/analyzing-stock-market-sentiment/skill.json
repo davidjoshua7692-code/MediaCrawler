@@ -1,0 +1,53 @@
+{
+  "name": "analyzing-stock-market-sentiment",
+  "description": "从社交媒体讨论中提取股票多空情绪，为投资决策提供市场情绪参考",
+  "version": "1.0.0",
+  "author": "MediaCrawler AI",
+  "category": "数据分析",
+  "tags": ["股票", "情绪分析", "投资", "多空", "价格目标"],
+  "trigger_keywords": [
+    "股票", "股市", "投资", "基金", "炒股", "行情",
+    "涨停", "跌停", "多头", "空头", "做多", "做空",
+    "601899", "000001", "紫金矿业", "贵州茅台"
+  ],
+  "input_format": {
+    "comments_file": "CSV文件，包含评论数据（必需）",
+    "contents_file": "CSV文件，包含内容数据（可选）",
+    "stock_name": "股票名称（可选，默认'目标股票'）"
+  },
+  "output_format": {
+    "sentiment_distribution": "多空情绪分布",
+    "price_targets": "价格目标统计",
+    "investment_behavior": "投资行为分析",
+    "key_themes": "核心关注主题",
+    "bullish_reasons": "看涨理由Top 10",
+    "bearish_reasons": "看跌理由Top 10",
+    "risk_signals": "风险信号识别",
+    "investment_insights": "综合投资洞察"
+  },
+  "usage_example": "python stock_sentiment.py data/xhs/csv/search_comments.csv data/xhs/csv/search_contents.csv '紫金矿业'",
+  "dependencies": ["pandas"],
+  "features": [
+    "多空情绪分析（看涨/看跌/观望）",
+    "价格目标提取与统计",
+    "投资行为分析（加仓/减仓/持有）",
+    "核心关注主题（黄金/铜价/业绩/估值）",
+    "看涨/看跌理由提取（按点赞排序）",
+    "投资者故事识别（卖飞/买少/十年十倍）",
+    "风险信号识别（情绪过热/FOMO/获利回吐）",
+    "综合投资洞察生成"
+  ],
+  "supported_platforms": ["xiaohongshu", "weibo", "tieba", "zhihu"],
+  "limitations": [
+    "无法识别反讽语气",
+    "无法理解复杂上下文",
+    "网络用语可能漏识别",
+    "情绪指标仅作参考，不作为投资建议"
+  ],
+  "best_practices": {
+    "minimum_sample_size": "100+ 条评论",
+    "recommended_sample_size": "500+ 条评论",
+    "optimal_sample_size": "1000+ 条评论",
+    "analysis_timing": ["行情波动后", "重大事件前", "定期跟踪"]
+  }
+}

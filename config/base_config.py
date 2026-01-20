@@ -19,7 +19,7 @@
 
 # 基础配置
 PLATFORM = "xhs"  # 平台，xhs | dy | ks | bili | wb | tieba | zhihu
-KEYWORDS = "宝山咖啡厅,宝山办公空间,宝山自习室,宝山咖啡馆久坐,宝山工作咖啡厅,宝山安静咖啡厅"  # 关键词搜索配置，以英文逗号分隔
+KEYWORDS = "紫金矿业,紫金矿业601899,紫金矿业股票,601899,紫金矿业投资,紫金矿业分析"  # 关键词搜索配置，以英文逗号分隔
 LOGIN_TYPE = "qrcode"  # qrcode or phone or cookie
 COOKIES = ""
 CRAWLER_TYPE = (
@@ -80,7 +80,7 @@ USER_DATA_DIR = "%s_user_data_dir"  # %s will be replaced by platform name
 START_PAGE = 1
 
 # 爬取视频/帖子的数量控制
-CRAWLER_MAX_NOTES_COUNT = 30
+CRAWLER_MAX_NOTES_COUNT = 50
 
 # 并发爬虫数量控制
 MAX_CONCURRENCY_NUM = 1

@@ -27,6 +27,9 @@
       "Bash(npm install:*)",
       "Bash(npx playwright install:*)",
       "Bash(pip install:*)"
+    ],
+    "additionalDirectories": [
+      "d:\\MediaCrawler-main\\.claude\\skills"
     ]
   },
   "enabledPlugins": {
