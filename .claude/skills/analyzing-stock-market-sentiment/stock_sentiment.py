@@ -2,6 +2,10 @@
 股市情绪分析器
 专门针对股票讨论进行多空情绪分析
 支持小红书、微博、股吧等平台数据
+
+支持两种分析方法：
+1. 关键词匹配（快速，默认）
+2. FinBERT（精准，需下载模型）
 """
 import pandas as pd
 import re
@@ -9,6 +13,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 import sys
+import argparse
 
 
 # ============================================================================
@@ -64,15 +69,53 @@ RISK_SIGNALS = {
 
 
 # ============================================================================
+# FinBERT 集成
+# ============================================================================
+
+# 尝试导入 FinBERT 分析器
+try:
+    from finbert_analyzer import HybridSentimentAnalyzer
+    FINBERT_AVAILABLE = True
+except ImportError:
+    FINBERT_AVAILABLE = False
+
+# 全局 FinBERT 分析器
+_finbert_analyzer = None
+
+
+def get_finbert_analyzer():
+    """获取 FinBERT 分析器（单例模式）"""
+    global _finbert_analyzer
+
+    if not FINBERT_AVAILABLE:
+        return None
+
+    if _finbert_analyzer is None:
+        try:
+            _finbert_analyzer = HybridSentimentAnalyzer(
+                finbert_model_path="../../../models/finbert_chinese/"
+            )
+            if _finbert_analyzer.finbert.model_loaded:
+                print("✅ FinBERT 模型已启用（混合模式）")
+        except Exception as e:
+            print(f"⚠️  FinBERT 初始化失败: {e}")
+            print("   将使用纯关键词匹配模式")
+            _finbert_analyzer = None
+
+    return _finbert_analyzer
+
+
+# ============================================================================
 # 核心分析函数
 # ============================================================================
 
-def analyze_sentiment(text: str) -> Tuple[str, int]:
+def analyze_sentiment(text: str, use_finbert: bool = True) -> Tuple[str, int]:
     """
     分析单条文本的情绪
 
     Args:
         text: 文本内容
+        use_finbert: 是否尝试使用 FinBERT（默认True）
 
     Returns:
         (情绪类型, 得分) - 情绪类型为 'bullish', 'bearish', 'neutral', 'uncertain'
@@ -80,6 +123,24 @@ def analyze_sentiment(text: str) -> Tuple[str, int]:
     if pd.isna(text):
         return 'uncertain', 0
 
+    # 优先使用 FinBERT（如果启用且可用）
+    if use_finbert and FINBERT_AVAILABLE:
+        finbert = get_finbert_analyzer()
+        if finbert and finbert.finbert.model_loaded:
+            try:
+                result = finbert.analyze(str(text))
+                sentiment = result['sentiment']
+                confidence = result['confidence']
+
+                # 转换置信度为得分（0-10）
+                score = int(confidence * 10)
+
+                return sentiment, score
+            except Exception as e:
+                # FinBERT 失败，回退到关键词
+                pass
+
+    # 关键词匹配（回退方案或默认方案）
     text_lower = str(text).lower()
 
     bullish_score = sum(1 for kw in BULLISH_KEYWORDS if kw in text_lower)
@@ -203,7 +264,8 @@ def analyze_stock_sentiment(
     comments_file: str,
     contents_file: str = None,
     stock_name: str = '目标股票',
-    output_dir: str = None
+    output_dir: str = None,
+    use_finbert: bool = True
 ) -> Dict:
     """
     综合分析股票讨论情绪
@@ -213,6 +275,7 @@ def analyze_stock_sentiment(
         contents_file: 内容CSV文件路径（可选）
         stock_name: 股票名称
         output_dir: 输出目录
+        use_finbert: 是否使用 FinBERT（默认True，自动回退到关键词）
 
     Returns:
         分析结果字典
@@ -475,26 +538,21 @@ def analyze_stock_sentiment(
 
 if __name__ == "__main__":
     import sys
+    import argparse
 
-    if len(sys.argv) < 2:
-        print("用法: python stock_sentiment.py <评论文件> [内容文件] [股票名称]")
-        print("\n示例:")
-        print("  python stock_sentiment.py data/xhs/csv/search_comments.csv")
-        print("  python stock_sentiment.py data/xhs/csv/search_comments.csv data/xhs/csv/search_contents.csv")
-        print("  python stock_sentiment.py data/xhs/csv/search_comments.csv data/xhs/csv/search_contents.csv '紫金矿业'")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description='股市情绪分析器')
+    parser.add_argument('comments_file', help='评论CSV文件路径')
+    parser.add_argument('contents_file', nargs='?', help='内容CSV文件路径（可选）')
+    parser.add_argument('stock_name', nargs='?', default='目标股票', help='股票名称')
+    parser.add_argument('--no-finbert', action='store_true', help='禁用 FinBERT，仅使用关键词匹配')
 
-    comments_file = sys.argv[1]
-    contents_file = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].endswith('.csv') else None
-    stock_name = sys.argv[3] if len(sys.argv) > 3 else '目标股票'
+    args = parser.parse_args()
 
-    # 如果第二个参数是CSV文件
-    if len(sys.argv) > 2 and sys.argv[2].endswith('.csv'):
-        contents_file = sys.argv[2]
-        stock_name = sys.argv[4] if len(sys.argv) > 4 else '目标股票'
+    use_finbert = not args.no_finbert
 
     results = analyze_stock_sentiment(
-        comments_file=comments_file,
-        contents_file=contents_file,
-        stock_name=stock_name
+        comments_file=args.comments_file,
+        contents_file=args.contents_file,
+        stock_name=args.stock_name,
+        use_finbert=use_finbert
     )
