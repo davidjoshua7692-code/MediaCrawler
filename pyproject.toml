@@ -42,6 +42,7 @@ dependencies = [
     "torch>=2.5.0",
     "transformers>=4.57.6",
     "huggingface-hub>=0.36.0",
+    "seaborn>=0.13.2",
 ]
 
 # PyPI官方源
